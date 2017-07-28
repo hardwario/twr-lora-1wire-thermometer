@@ -171,7 +171,7 @@ bool bc_thermistor_get_temperature_celsius(float *temperature)
     bc_data_stream_get_average(&stream_temperature, &data);
 
     // Get actual VDDA and accurate data
-    bc_adc_get_vdda(&vdda);
+    bc_adc_get_vdda_voltage(&vdda);
     data *= 3.3 / vdda;
 
     // Software shuffle of pull-up and NTC with each other (So that the table can be used)

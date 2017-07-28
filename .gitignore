@@ -3,5 +3,7 @@
 /out_release/
 .gitmodules
 .DS_Store
+Debug_STM32L083CZ_FLASH.ld
+bcf-scissor-lift-node.elf.launch
 /send/
 /Debug/
