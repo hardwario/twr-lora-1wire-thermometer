@@ -1,19 +1,17 @@
 <a href="https://www.bigclown.com"><img src="https://s3.eu-central-1.amazonaws.com/bigclown/gh-readme-logo.png" alt="BigClown Logo" align="right"></a>
 
-# Firmware for BigClown Generic Node
+# Firmware For Scissor Lift
 
-[![Travis](https://img.shields.io/travis/bigclownlabs/bcp-generic-node/master.svg)](https://travis-ci.org/bigclownlabs/bcp-generic-node)
-[![Release](https://img.shields.io/github/release/bigclownlabs/bcp-generic-node.svg)](https://github.com/bigclownlabs/bcp-generic-node/releases)
-[![License](https://img.shields.io/github/license/bigclownlabs/bcp-generic-node.svg)](https://github.com/bigclownlabs/bcp-generic-node/blob/master/LICENSE)
+[![Travis](https://img.shields.io/travis/bigclownlabs/bc-core-module/master.svg)](https://travis-ci.org/bigclownlabs/bcf-scissor-lift-node)
+[![Release](https://img.shields.io/github/release/bigclownlabs/bc-core-module.svg)](https://github.com/bigclownlabs/bcf-scissor-lift-node/releases)
+[![License](https://img.shields.io/github/license/bigclownlabs/bc-core-module.svg)](https://github.com/bigclownlabs/bcf-scissor-lift-node/blob/master/LICENSE)
 [![Twitter](https://img.shields.io/twitter/follow/BigClownLabs.svg?style=social&label=Follow)](https://twitter.com/BigClownLabs)
 
-This repository contains firmware for BigClown Generic Node.
+This repository contains firmware for scissor lift node that measure temperature and every 10 seconds communicated with generic gateway. Using CP201t thermistor.
 
-## Firmware Programming
-```
-dfu-util -s 0x08000000:leave -d 0483:df11 -a 0 -D firmware.bin
-```
-More information about dfu [here](https://doc.bigclown.com/core-module-flashing.html)
+If you want to get more information about Core Module, firmware and how to work with it, please follow this link:
+
+**https://doc.bigclown.com/core-module.html**
 
 ## License
 
