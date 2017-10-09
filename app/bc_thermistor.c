@@ -1,10 +1,5 @@
-#include <bcl.h>
-
-#define TEMPERATURE_DATA_STREAM_SAMPLES 10
-#define TEMPERATURE_UPDATE_INTERVAL (1 * 1000)
-
-BC_DATA_STREAM_INT_BUFFER(stream_buffer_temperature, TEMPERATURE_DATA_STREAM_SAMPLES)
-bc_data_stream_t stream_temperature;
+#include <bc_thermistor.h>
+#include <bc_adc.h>
 
 // A value of 0x7FFF indicates out of range signal
 static const uint16_t _thermistor_conversion_table[1024] =
@@ -139,43 +134,77 @@ static const uint16_t _thermistor_conversion_table[1024] =
     0x7FFF, 0x7FFF, 0x7FFF, 0x7FFF, 0x7FFF, 0x7FFF, 0x7FFF, 0x7FFF
 };
 
-static int32_t _termistor_data;
-
-static void _ntc_adc_event_handler(bc_adc_channel_t channel, bc_adc_event_t event, void *param);
-static void _ntc_temperature_task(void *param);
-
-void bc_thermistor_init(void)
+static const bc_adc_channel_t _bc_thermistor_adc_channel_lut[2] =
 {
-    // Initialize data stream
-    bc_data_stream_init(&stream_temperature, 1, &stream_buffer_temperature);
+    [BC_MODULE_SENSOR_CHANNEL_A] = BC_ADC_CHANNEL_A4,
+    [BC_MODULE_SENSOR_CHANNEL_B] = BC_ADC_CHANNEL_A5
+};
 
-    // Initialize Sensor Module to enable NTC measurement
-    while(!bc_module_sensor_init());
+static void _bc_thermistor_adc_event_handler(bc_adc_channel_t channel, bc_adc_event_t event, void *param);
+static void _bc_thermistor_task_interval(void *param);
+static void _bc_thermistor_task_measure(void *param);
+
+void bc_thermistor_init(bc_thermistor_t *self, bc_module_sensor_channel_t channel)
+{
+    memset(self, 0, sizeof(*self));
+    self->_channel = channel;
 
     // Initialize ADC to measure voltage on NTC (temperature)
-    bc_adc_init(BC_ADC_CHANNEL_A4, BC_ADC_FORMAT_16_BIT);
-    bc_adc_set_event_handler(BC_ADC_CHANNEL_A4, _ntc_adc_event_handler, NULL);
-    bc_adc_async_read(BC_ADC_CHANNEL_A4);
+    bc_adc_init(_bc_thermistor_adc_channel_lut[self->_channel], BC_ADC_FORMAT_16_BIT);
+    bc_adc_read(_bc_thermistor_adc_channel_lut[self->_channel], &self->_raw);
 
-    // Register NTC task
-    bc_scheduler_register(_ntc_temperature_task, NULL, bc_tick_get() + TEMPERATURE_UPDATE_INTERVAL);
+    self->_task_id_interval = bc_scheduler_register(_bc_thermistor_task_interval, self, BC_TICK_INFINITY);
+    self->_task_id_measure = bc_scheduler_register(_bc_thermistor_task_measure, self, 10);
 }
 
-bool bc_thermistor_get_temperature_celsius(float *temperature)
+void bc_thermistor_set_event_handler(bc_thermistor_t *self, void (*event_handler)(bc_thermistor_t *, bc_thermistor_event_t, void *), void *event_param)
+{
+    self->_event_handler = event_handler;
+    self->_event_param = event_param;
+}
+
+void bc_thermistor_set_update_interval(bc_thermistor_t *self, bc_tick_t interval)
+{
+    self->_update_interval = interval;
+
+    if (self->_update_interval == BC_TICK_INFINITY)
+    {
+        bc_scheduler_plan_absolute(self->_task_id_interval, BC_TICK_INFINITY);
+    }
+    else
+    {
+        bc_scheduler_plan_relative(self->_task_id_interval, self->_update_interval);
+
+        bc_thermistor_measure(self);
+    }
+}
+
+bool bc_thermistor_measure(bc_thermistor_t *self)
+{
+    if (self->_measurement_active)
+    {
+        return false;
+    }
+
+    self->_measurement_active = true;
+
+    bc_scheduler_plan_now(self->_task_id_measure);
+
+    return true;
+}
+
+bool bc_thermistor_get_temperature_celsius(bc_thermistor_t *self, float *temperature)
 {
     float vdda;
     int32_t data = 0;
     int16_t temp;
-
-    // Get average of data stream
-    bc_data_stream_get_average(&stream_temperature, &data);
 
     // Get actual VDDA and accurate data
     bc_adc_get_vdda_voltage(&vdda);
     data *= 3.3 / vdda;
 
     // Software shuffle of pull-up and NTC with each other (So that the table can be used)
-    data = 0xffff - data;
+    data = 0xffff - self->_raw;
 
     // Find temperature in LUT
     temp = _thermistor_conversion_table[data >> 6];
@@ -189,37 +218,136 @@ bool bc_thermistor_get_temperature_celsius(float *temperature)
         return true;
     }
 
-    bc_data_stream_reset(&stream_temperature);
-
     return false;
 }
 
-static void _ntc_adc_event_handler(bc_adc_channel_t channel, bc_adc_event_t event, void *param)
+static void _bc_thermistor_task_interval(void *param)
 {
-    (void) param;
+    bc_thermistor_t *self = param;
+
+    bc_thermistor_measure(self);
+
+    bc_scheduler_plan_current_relative(self->_update_interval);
+}
+
+static void _bc_thermistor_task_measure(void *param)
+{
+    bc_thermistor_t *self = param;
+
+start:
+
+    switch (self->_state)
+    {
+        case BC_THERMISTOR_STATE_ERROR:
+        {
+            self->_temperature_valid = false;
+
+            self->_measurement_active = false;
+
+            bc_module_sensor_set_pull(_bc_thermistor_adc_channel_lut[self->_channel], BC_MODULE_SENSOR_PULL_NONE);
+
+            if (self->_event_handler != NULL)
+            {
+                self->_event_handler(self, bc_thermistor_EVENT_ERROR, self->_event_param);
+            }
+
+            self->_state = BC_THERMISTOR_STATE_INITIALIZE;
+
+            return;
+        }
+        case BC_THERMISTOR_STATE_INITIALIZE:
+        {
+            if (!bc_module_sensor_init())
+            {
+                self->_state = BC_THERMISTOR_STATE_ERROR;
+                goto start;
+            }
+
+            self->_state = BC_THERMISTOR_STATE_MEASURE;
+
+            if (self->_measurement_active)
+            {
+                bc_scheduler_plan_current_relative(10);
+            }
+
+            return;
+        }
+        case BC_THERMISTOR_STATE_MEASURE:
+        {
+            self->_state = BC_THERMISTOR_STATE_ERROR;
+
+            if (!bc_module_sensor_set_pull(_bc_thermistor_adc_channel_lut[self->_channel], BC_MODULE_SENSOR_PULL_UP_4K7))
+            {
+                goto start;
+            }
+
+            self->_state = BC_THERMISTOR_STATE_MEASURE_RUN;
+
+            bc_scheduler_plan_current_relative(50);
+
+            return;
+        }
+        case BC_THERMISTOR_STATE_MEASURE_RUN:
+        {
+            self->_state = BC_THERMISTOR_STATE_ERROR;
+
+            if (!bc_adc_set_event_handler(_bc_thermistor_adc_channel_lut[self->_channel], _bc_thermistor_adc_event_handler, param))
+            {
+                goto start;
+            }
+
+            // Start another reading
+            if (!bc_adc_async_read(_bc_thermistor_adc_channel_lut[self->_channel]))
+            {
+                goto start;
+            }
+
+            self->_state = BC_THERMISTOR_STATE_READ;
+
+            return;
+        }
+        case BC_THERMISTOR_STATE_READ:
+        {
+            bc_adc_get_result(_bc_thermistor_adc_channel_lut[self->_channel], &self->_raw);
+
+            self->_temperature_valid = true;
+
+            self->_state = BC_THERMISTOR_STATE_UPDATE;
+
+            goto start;
+        }
+        case BC_THERMISTOR_STATE_UPDATE:
+        {
+            self->_measurement_active = false;
+
+            if (self->_event_handler != NULL)
+            {
+                self->_event_handler(self, bc_thermistor_EVENT_UPDATE, self->_event_param);
+            }
+
+            self->_state = BC_THERMISTOR_STATE_MEASURE;
+
+            return;
+        }
+        default:
+        {
+            self->_state = BC_THERMISTOR_STATE_ERROR;
+
+            goto start;
+        }
+    }
+
+}
+
+static void _bc_thermistor_adc_event_handler(bc_adc_channel_t channel, bc_adc_event_t event, void *param)
+{
+    bc_thermistor_t *self = param;
 
     if (event == BC_ADC_EVENT_DONE)
     {
         // Disconnect pull-up
-        bc_module_sensor_set_pull(BC_MODULE_SENSOR_CHANNEL_A, BC_MODULE_SENSOR_PULL_NONE);
+        bc_module_sensor_set_pull(_bc_thermistor_adc_channel_lut[self->_channel], BC_MODULE_SENSOR_PULL_NONE);
 
-        bc_adc_get_result(channel, &_termistor_data);
+        bc_scheduler_plan_now(self->_task_id_measure);
     }
-}
-
-static void _ntc_temperature_task(void *param)
-{
-    (void) param;
-
-    // Update data stream
-    bc_data_stream_feed(&stream_temperature, &_termistor_data);
-
-    // Connect pull-up // TODO Should be 4k7 (library error)
-    bc_module_sensor_set_pull(BC_MODULE_SENSOR_CHANNEL_A, BC_MODULE_SENSOR_PULL_UP_56R);
-
-    // Start another reading
-    bc_adc_async_read(BC_ADC_CHANNEL_A4);
-
-    // Plan self task
-    bc_scheduler_plan_current_relative(TEMPERATURE_UPDATE_INTERVAL);
 }
