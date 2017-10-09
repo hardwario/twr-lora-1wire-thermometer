@@ -244,7 +244,7 @@ start:
 
             self->_measurement_active = false;
 
-            bc_module_sensor_set_pull(_bc_thermistor_adc_channel_lut[self->_channel], BC_MODULE_SENSOR_PULL_NONE);
+            bc_module_sensor_set_pull(self->_channel, BC_MODULE_SENSOR_PULL_NONE);
 
             if (self->_event_handler != NULL)
             {
@@ -276,7 +276,7 @@ start:
         {
             self->_state = BC_THERMISTOR_STATE_ERROR;
 
-            if (!bc_module_sensor_set_pull(_bc_thermistor_adc_channel_lut[self->_channel], BC_MODULE_SENSOR_PULL_UP_4K7))
+            if (!bc_module_sensor_set_pull(self->_channel, BC_MODULE_SENSOR_PULL_UP_4K7))
             {
                 goto start;
             }
@@ -308,13 +308,7 @@ start:
         }
         case BC_THERMISTOR_STATE_READ:
         {
-            bc_adc_get_result(_bc_thermistor_adc_channel_lut[self->_channel], &self->_raw);
-
-            self->_temperature_valid = true;
-
-            self->_state = BC_THERMISTOR_STATE_UPDATE;
-
-            goto start;
+            return;
         }
         case BC_THERMISTOR_STATE_UPDATE:
         {
@@ -346,7 +340,13 @@ static void _bc_thermistor_adc_event_handler(bc_adc_channel_t channel, bc_adc_ev
     if (event == BC_ADC_EVENT_DONE)
     {
         // Disconnect pull-up
-        bc_module_sensor_set_pull(_bc_thermistor_adc_channel_lut[self->_channel], BC_MODULE_SENSOR_PULL_NONE);
+        bc_module_sensor_set_pull(self->_channel, BC_MODULE_SENSOR_PULL_NONE);
+
+        bc_adc_get_result(_bc_thermistor_adc_channel_lut[self->_channel], &self->_raw);
+
+        self->_temperature_valid = true;
+
+        self->_state = BC_THERMISTOR_STATE_UPDATE;
 
         bc_scheduler_plan_now(self->_task_id_measure);
     }
