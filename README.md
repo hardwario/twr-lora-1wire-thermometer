@@ -9,6 +9,13 @@
 
 This repository contains firmware for scissor lift node that measure temperature and every 10 seconds communicated with generic gateway. Using CP201t thermistor.
 
+
+Herda Marek:
+Vyčítání třeba každých 30sekund by bylo OK. Informaci o téměř vybité baterii bych uvítal zakódováním do teploty, třeba speciálním číslem teploty, řekněme 0.99 stupnu 3x za sebou, třeba s periodou každých 6 hodin. Šlo by to takto? Zjednodušilo by mi to alerting.
+
+
+
+
 If you want to get more information about Core Module, firmware and how to work with it, please follow this link:
 
 **https://doc.bigclown.com/core-module.html**
