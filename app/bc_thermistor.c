@@ -196,15 +196,22 @@ bool bc_thermistor_measure(bc_thermistor_t *self)
 bool bc_thermistor_get_temperature_celsius(bc_thermistor_t *self, float *temperature)
 {
     float vdda;
-    int32_t data = 0;
+    int32_t data;
     int16_t temp;
+
+    if (!self->_temperature_valid)
+    {
+        return false;
+    }
+
+    data = self->_raw;
 
     // Get actual VDDA and accurate data
     bc_adc_get_vdda_voltage(&vdda);
     data *= 3.3 / vdda;
 
     // Software shuffle of pull-up and NTC with each other (So that the table can be used)
-    data = 0xffff - self->_raw;
+    data = 0xffff - data;
 
     // Find temperature in LUT
     temp = _thermistor_conversion_table[data >> 6];
