@@ -6,18 +6,22 @@
 #define BATTERY_UPDATE_INTERVAL   (10 * 60 * 1000)
 
 #define UPDATE_SERVICE_INTERVAL            (5 * 1000)
-#define UPDATE_NORMAL_INTERVAL             (10 * 1000)
+#define UPDATE_NORMAL_INTERVAL             (1 * 60 * 1000)
+
 #define BAROMETER_UPDATE_SERVICE_INTERVAL  (1 * 60 * 1000)
 #define BAROMETER_UPDATE_NORMAL_INTERVAL   (5 * 60 * 1000)
 
+#define TEMPERATURE_DS18B20_PUB_NO_CHANGE_INTEVAL (5 * 60 * 1000)
+#define TEMPERATURE_DS18B20_PUB_VALUE_CHANGE 0.4f
+
 #define TEMPERATURE_TAG_PUB_NO_CHANGE_INTEVAL (5 * 60 * 1000)
-#define TEMPERATURE_TAG_PUB_VALUE_CHANGE 0.2f
+#define TEMPERATURE_TAG_PUB_VALUE_CHANGE 0.6f
 
 #define HUMIDITY_TAG_PUB_NO_CHANGE_INTEVAL (5 * 60 * 1000)
 #define HUMIDITY_TAG_PUB_VALUE_CHANGE 5.0f
 
 #define LUX_METER_TAG_PUB_NO_CHANGE_INTEVAL (5 * 60 * 1000)
-#define LUX_METER_TAG_PUB_VALUE_CHANGE 25.0f
+#define LUX_METER_TAG_PUB_VALUE_CHANGE 10000.0f // set too big value so data will be send only every 5 minutes, light changes a lot outside.
 
 #define BAROMETER_TAG_PUB_NO_CHANGE_INTEVAL (5 * 60 * 1000)
 #define BAROMETER_TAG_PUB_VALUE_CHANGE 20.0f
@@ -84,6 +88,21 @@ void application_init(void)
     bc_led_pulse(&led, 2000);
 }
 
+// This task is fired once after the SERVICE_INTERVAL_INTERVAL milliseconds and changes the period
+// of measurement. After module power-up you get faster updates so you can test the module and see
+// instant changes. After SERVICE_INTERVAL_INTERVAL the update period is longer to save batteries.
+void switch_to_normal_mode_task(void *param)
+{
+    bc_module_climate_set_update_interval_thermometer(UPDATE_NORMAL_INTERVAL);
+    bc_module_climate_set_update_interval_hygrometer(UPDATE_NORMAL_INTERVAL);
+    bc_module_climate_set_update_interval_lux_meter(UPDATE_NORMAL_INTERVAL);
+    bc_module_climate_set_update_interval_barometer(BAROMETER_UPDATE_SERVICE_INTERVAL);
+
+    bc_ds18b20_set_update_interval(&ds18d20, UPDATE_NORMAL_INTERVAL);
+
+    bc_scheduler_unregister(bc_scheduler_get_current_task_id());
+}
+
 void handler_button(bc_button_t *s, bc_button_event_t e, void *p)
 {
     (void) s;
@@ -125,25 +144,13 @@ void handler_ds18b20(bc_ds18b20_t *s, bc_ds18b20_event_t e, void *p)
     {
         bc_ds18b20_get_temperature_celsius(s, &value);
 
-        if ((fabs(value - params.temperature_ds18b20.value) >= TEMPERATURE_TAG_PUB_VALUE_CHANGE) || (params.temperature_ds18b20.next_pub < bc_scheduler_get_spin_tick()))
+        if ((fabs(value - params.temperature_ds18b20.value) >= TEMPERATURE_DS18B20_PUB_VALUE_CHANGE) || (params.temperature_ds18b20.next_pub < bc_scheduler_get_spin_tick()))
         {
             bc_radio_pub_temperature(BC_RADIO_PUB_CHANNEL_A, &value);
             params.temperature_ds18b20.value = value;
-            params.temperature_ds18b20.next_pub = bc_scheduler_get_spin_tick() + TEMPERATURE_TAG_PUB_NO_CHANGE_INTEVAL;
+            params.temperature_ds18b20.next_pub = bc_scheduler_get_spin_tick() + TEMPERATURE_DS18B20_PUB_NO_CHANGE_INTEVAL;
         }
     }
-}
-
-void switch_to_normal_mode_task(void *param)
-{
-    bc_module_climate_set_update_interval_thermometer(UPDATE_NORMAL_INTERVAL);
-    bc_module_climate_set_update_interval_hygrometer(UPDATE_NORMAL_INTERVAL);
-    bc_module_climate_set_update_interval_lux_meter(UPDATE_NORMAL_INTERVAL);
-    bc_module_climate_set_update_interval_barometer(BAROMETER_UPDATE_SERVICE_INTERVAL);
-
-    bc_ds18b20_set_update_interval(&ds18d20, UPDATE_NORMAL_INTERVAL);
-
-    bc_scheduler_unregister(bc_scheduler_get_current_task_id());
 }
 
 void climate_module_event_handler(bc_module_climate_event_t event, void *event_param)
