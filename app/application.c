@@ -1,9 +1,29 @@
 #include <application.h>
 #include <bc_ds18b20.h>
 
+/*
+
+ SENSOR MODULE CONNECTION
+==========================
+
+Sensor Module R1.0 - 4 pin connector
+VCC, GND, - , DATA
+
+Sensor Module R1.1 - 5 pin connector
+- , GND , VCC , - , DATA
+
+
+ DS18B20 sensor pinout
+=======================
+VCC - red
+GND - black
+DATA- yellow (white)
+
+*/
+
 // Time after the sending is less frequent to save battery
-#define SERVICE_INTERVAL_INTERVAL (60 * 60 * 1000)
-#define BATTERY_UPDATE_INTERVAL   (10 * 60 * 1000)
+#define SERVICE_INTERVAL_INTERVAL (5 * 60 * 1000)
+#define BATTERY_UPDATE_INTERVAL   (30 * 60 * 1000)
 
 #define UPDATE_SERVICE_INTERVAL            (5 * 1000)
 #define UPDATE_NORMAL_INTERVAL             (1 * 60 * 1000)
@@ -12,19 +32,19 @@
 #define BAROMETER_UPDATE_NORMAL_INTERVAL   (5 * 60 * 1000)
 
 #define TEMPERATURE_DS18B20_PUB_NO_CHANGE_INTEVAL (5 * 60 * 1000)
-#define TEMPERATURE_DS18B20_PUB_VALUE_CHANGE 0.4f
+#define TEMPERATURE_DS18B20_PUB_VALUE_CHANGE 50.0f //0.4f
 
 #define TEMPERATURE_TAG_PUB_NO_CHANGE_INTEVAL (5 * 60 * 1000)
-#define TEMPERATURE_TAG_PUB_VALUE_CHANGE 0.6f
+#define TEMPERATURE_TAG_PUB_VALUE_CHANGE 50.0f //0.6f
 
 #define HUMIDITY_TAG_PUB_NO_CHANGE_INTEVAL (5 * 60 * 1000)
-#define HUMIDITY_TAG_PUB_VALUE_CHANGE 5.0f
+#define HUMIDITY_TAG_PUB_VALUE_CHANGE 50.0f //50.f
 
 #define LUX_METER_TAG_PUB_NO_CHANGE_INTEVAL (5 * 60 * 1000)
-#define LUX_METER_TAG_PUB_VALUE_CHANGE 10000.0f // set too big value so data will be send only every 5 minutes, light changes a lot outside.
+#define LUX_METER_TAG_PUB_VALUE_CHANGE 100000.0f // set too big value so data will be send only every 5 minutes, light changes a lot outside.
 
 #define BAROMETER_TAG_PUB_NO_CHANGE_INTEVAL (5 * 60 * 1000)
-#define BAROMETER_TAG_PUB_VALUE_CHANGE 20.0f
+#define BAROMETER_TAG_PUB_VALUE_CHANGE 200000.0f //20.0f
 
 static bc_led_t led;
 static bc_button_t button;
@@ -61,7 +81,7 @@ void application_init(void)
     bc_button_init(&button, BC_GPIO_BUTTON, BC_GPIO_PULL_DOWN, false);
     bc_button_set_event_handler(&button, handler_button, NULL);
 
-    bc_module_battery_init(BC_MODULE_BATTERY_FORMAT_MINI);
+    bc_module_battery_init();
     bc_module_battery_set_event_handler(handler_battery, NULL);
     bc_module_battery_set_update_interval(BATTERY_UPDATE_INTERVAL);
 
@@ -110,7 +130,6 @@ void handler_button(bc_button_t *s, bc_button_event_t e, void *p)
 
     if (e == BC_BUTTON_EVENT_PRESS)
     {
-        bc_led_set_mode(&led, BC_LED_MODE_OFF);
         bc_led_pulse(&led, 100);
 
         static uint16_t event_count = 0;
@@ -191,8 +210,7 @@ void climate_module_event_handler(bc_module_climate_event_t event, void *event_p
             {
                 value = 0;
             }
-            if ((fabs(value - params.illuminance.value) >= LUX_METER_TAG_PUB_VALUE_CHANGE) || (params.illuminance.next_pub < bc_scheduler_get_spin_tick()) ||
-                    ((value == 0) && (params.illuminance.value != 0)) || ((value > 1) && (params.illuminance.value == 0)))
+            if ((fabs(value - params.illuminance.value) >= LUX_METER_TAG_PUB_VALUE_CHANGE) || (params.illuminance.next_pub < bc_scheduler_get_spin_tick()))
             {
                 bc_radio_pub_luminosity(BC_RADIO_PUB_CHANNEL_R1_I2C0_ADDRESS_DEFAULT, &value);
                 params.illuminance.value = value;

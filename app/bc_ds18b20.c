@@ -5,6 +5,7 @@
 #include <bc_i2c.h>
 
 #define _BC_DS18B20_SCRATCHPAD_SIZE 9
+#define _BC_DS18B20_1WIRE_PIN BC_GPIO_P5
 
 static bc_tick_t _bc_ds18b20_lut_delay[] = {
     [BC_DS18B20_RESOLUTION_BITS_9] = 100,
@@ -23,7 +24,7 @@ void bc_ds18b20_init(bc_ds18b20_t *self, bc_ds18b20_resolution_bits_t resolution
 {
     memset(self, 0, sizeof(*self));
 
-    bc_onewire_init(BC_GPIO_P4);
+    bc_onewire_init(_BC_DS18B20_1WIRE_PIN);
 
     self->_resolution = resolution;
 
@@ -110,12 +111,19 @@ static bool _bc_ds18b20_power_up(bc_ds18b20_t *self)
 
     if (_bc_ds18b20_power_semaphore == 0)
     {
-        if (!bc_module_sensor_set_pull(BC_MODULE_SENSOR_CHANNEL_B, BC_MODULE_SENSOR_PULL_UP_56R))
+
+        bc_module_sensor_init();
+
+        if (bc_module_sensor_get_revision() == BC_MODULE_SENSOR_REVISION_R1_1)
         {
-            return false;
+            bc_module_sensor_set_vdd(1);
+        }
+        else
+        {
+            bc_module_sensor_set_pull(BC_MODULE_SENSOR_CHANNEL_A, BC_MODULE_SENSOR_PULL_UP_56R);
         }
 
-        if (!bc_module_sensor_set_pull(BC_MODULE_SENSOR_CHANNEL_A, BC_MODULE_SENSOR_PULL_UP_4K7))
+        if (!bc_module_sensor_set_pull(BC_MODULE_SENSOR_CHANNEL_B, BC_MODULE_SENSOR_PULL_UP_4K7))
         {
             return false;
         }
@@ -139,12 +147,18 @@ static bool _bc_ds18b20_power_down(bc_ds18b20_t *self)
 
     if (_bc_ds18b20_power_semaphore == 0)
     {
-        if (!bc_module_sensor_set_pull(BC_MODULE_SENSOR_CHANNEL_B, BC_MODULE_SENSOR_PULL_NONE))
+        bc_module_sensor_init();
+
+        if (bc_module_sensor_get_revision() == BC_MODULE_SENSOR_REVISION_R1_1)
         {
-            return false;
+            bc_module_sensor_set_vdd(0);
+        }
+        else
+        {
+            bc_module_sensor_set_pull(BC_MODULE_SENSOR_CHANNEL_A, BC_MODULE_SENSOR_PULL_NONE);
         }
 
-        if (!bc_module_sensor_set_pull(BC_MODULE_SENSOR_CHANNEL_A, BC_MODULE_SENSOR_PULL_NONE))
+        if (!bc_module_sensor_set_pull(BC_MODULE_SENSOR_CHANNEL_B, BC_MODULE_SENSOR_PULL_NONE))
         {
             return false;
         }
@@ -229,7 +243,7 @@ static void _bc_ds18b20_task_measure(void *param)
             uint64_t device_id;
             int found_devices;
 
-            found_devices = bc_onewire_search_family(BC_GPIO_P4, 0x28, &device_id, sizeof(device_id));
+            found_devices = bc_onewire_search_family(_BC_DS18B20_1WIRE_PIN, 0x28, &device_id, sizeof(device_id));
 
             if (found_devices == 0)
             {
@@ -240,18 +254,18 @@ static void _bc_ds18b20_task_measure(void *param)
 
             bc_onewire_transaction_start();
 
-            if (!bc_onewire_reset(BC_GPIO_P4))
+            if (!bc_onewire_reset(_BC_DS18B20_1WIRE_PIN))
             {
                 bc_onewire_transaction_stop();
 
                 goto start;
             }
 
-            bc_onewire_select(BC_GPIO_P4, &self->_device_number);
+            bc_onewire_select(_BC_DS18B20_1WIRE_PIN, &self->_device_number);
 
-            bc_onewire_write_8b(BC_GPIO_P4, 0xBE);
+            bc_onewire_write_8b(_BC_DS18B20_1WIRE_PIN, 0xBE);
 
-            bc_onewire_read(BC_GPIO_P4, scratchpad, sizeof(scratchpad));
+            bc_onewire_read(_BC_DS18B20_1WIRE_PIN, scratchpad, sizeof(scratchpad));
 
             bc_onewire_transaction_stop();
 
@@ -267,30 +281,30 @@ static void _bc_ds18b20_task_measure(void *param)
                 bc_onewire_transaction_start();
 
                 // Write Scratchpad
-                if (!bc_onewire_reset(BC_GPIO_P4))
+                if (!bc_onewire_reset(_BC_DS18B20_1WIRE_PIN))
                 {
                     bc_onewire_transaction_stop();
 
                     goto start;
                 }
 
-                bc_onewire_select(BC_GPIO_P4, &self->_device_number);
+                bc_onewire_select(_BC_DS18B20_1WIRE_PIN, &self->_device_number);
 
                 uint8_t buffer[] = {0x4e, 0x75, 0x70, self->_resolution << 5 | 0x1f};
 
-                bc_onewire_write(BC_GPIO_P4, buffer, sizeof(buffer));
+                bc_onewire_write(_BC_DS18B20_1WIRE_PIN, buffer, sizeof(buffer));
 
                 // Copy Scratchpad
-                if (!bc_onewire_reset(BC_GPIO_P4))
+                if (!bc_onewire_reset(_BC_DS18B20_1WIRE_PIN))
                 {
                     bc_onewire_transaction_stop();
 
                     goto start;
                 }
 
-                bc_onewire_select(BC_GPIO_P4, &self->_device_number);
+                bc_onewire_select(_BC_DS18B20_1WIRE_PIN, &self->_device_number);
 
-                bc_onewire_write_8b(BC_GPIO_P4, 0x48);
+                bc_onewire_write_8b(_BC_DS18B20_1WIRE_PIN, 0x48);
 
                 bc_onewire_transaction_stop();
 
@@ -338,15 +352,15 @@ static void _bc_ds18b20_task_measure(void *param)
 
             bc_onewire_transaction_start();
 
-            if (!bc_onewire_reset(BC_GPIO_P4))
+            if (!bc_onewire_reset(_BC_DS18B20_1WIRE_PIN))
             {
             	bc_onewire_transaction_stop();
                 goto start;
             }
 
-            bc_onewire_select(BC_GPIO_P4, &self->_device_number);
+            bc_onewire_select(_BC_DS18B20_1WIRE_PIN, &self->_device_number);
 
-            bc_onewire_write_8b(BC_GPIO_P4, 0x44);
+            bc_onewire_write_8b(_BC_DS18B20_1WIRE_PIN, 0x44);
 
             bc_onewire_transaction_stop();
 
@@ -364,18 +378,18 @@ static void _bc_ds18b20_task_measure(void *param)
 
             bc_onewire_transaction_start();
 
-            if (!bc_onewire_reset(BC_GPIO_P4))
+            if (!bc_onewire_reset(_BC_DS18B20_1WIRE_PIN))
             {
                 bc_onewire_transaction_stop();
 
                 goto start;
             }
 
-            bc_onewire_select(BC_GPIO_P4, &self->_device_number);
+            bc_onewire_select(_BC_DS18B20_1WIRE_PIN, &self->_device_number);
 
-            bc_onewire_write_8b(BC_GPIO_P4, 0xBE);
+            bc_onewire_write_8b(_BC_DS18B20_1WIRE_PIN, 0xBE);
 
-            bc_onewire_read(BC_GPIO_P4, scratchpad, sizeof(scratchpad));
+            bc_onewire_read(_BC_DS18B20_1WIRE_PIN, scratchpad, sizeof(scratchpad));
 
             bc_onewire_transaction_stop();
 
