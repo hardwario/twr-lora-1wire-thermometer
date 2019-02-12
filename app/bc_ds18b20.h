@@ -24,7 +24,7 @@ typedef enum
 //! @brief BigClown ds18b20 instance
 
 typedef struct bc_ds18b20_t bc_ds18b20_t;
-
+typedef struct bc_ds18b20_sensor_t bc_ds18b20_sensor_t;
 
 //! @cond
 
@@ -49,19 +49,29 @@ typedef enum
 
 } bc_ds18b20_resolution_bits_t;
 
+struct bc_ds18b20_sensor_t
+{
+    int16_t _temperature_raw;
+    uint64_t _device_address;
+    bool _temperature_valid;
+};
+
 struct bc_ds18b20_t
 {
     bc_scheduler_task_id_t _task_id_interval;
     bc_scheduler_task_id_t _task_id_measure;
-    void (*_event_handler)(bc_ds18b20_t *, bc_ds18b20_event_t, void *);
+    void (*_event_handler)(bc_ds18b20_t *, uint64_t _device_address, bc_ds18b20_event_t, void *);
     void *_event_param;
     bool _measurement_active;
     bc_tick_t _update_interval;
     bc_ds18b20_state_t _state;
-    int16_t _temperature_raw;
-    uint64_t _device_number;
-    bool _temperature_valid;
+
+    bc_ds18b20_sensor_t *sensor;
+    int sensor_count;
+    int sensor_found;
+
     bc_ds18b20_resolution_bits_t _resolution;
+
     bool _power;
 };
 
@@ -73,12 +83,15 @@ struct bc_ds18b20_t
 
 void bc_ds18b20_init(bc_ds18b20_t *self, bc_ds18b20_resolution_bits_t resolution);
 
+void bc_ds18b20_init_multiple(bc_ds18b20_t *self, bc_ds18b20_sensor_t *sensors, int sensor_count, bc_ds18b20_resolution_bits_t resolution);
+
+
 //! @brief Set callback function
 //! @param[in] self Instance
 //! @param[in] event_handler Function address
 //! @param[in] event_param Optional event parameter (can be NULL)
 
-void bc_ds18b20_set_event_handler(bc_ds18b20_t *self, void (*event_handler)(bc_ds18b20_t *, bc_ds18b20_event_t, void *), void *event_param);
+void bc_ds18b20_set_event_handler(bc_ds18b20_t *self, void (*event_handler)(bc_ds18b20_t *, uint64_t _device_address, bc_ds18b20_event_t, void *), void *event_param);
 
 //! @brief Set measurement interval
 //! @param[in] self Instance
@@ -95,19 +108,28 @@ bool bc_ds18b20_measure(bc_ds18b20_t *self);
 
 //! @brief Get measured temperature in degrees of Celsius
 //! @param[in] self Instance
+//! @param[in] device_address 64b device address
 //! @brief Get measured temperature as raw values
 //! @return true When value is valid
 //! @return false When value is invalid
 
-bool bc_ds18b20_get_temperature_raw(bc_ds18b20_t *self, int16_t *raw);
+bool bc_ds18b20_get_temperature_raw(bc_ds18b20_t *self, uint64_t device_address, int16_t *raw);
 
 //! @brief Get measured temperature in degrees of Celsius
 //! @param[in] self Instance
+//! @param[in] device_address 64b device address
 //! @param[in] celsius Pointer to variables where results will be stored
 //! @return true When value is valid
 //! @return false When value is invalid
 
-bool bc_ds18b20_get_temperature_celsius(bc_ds18b20_t *self, float *celsius);
+bool bc_ds18b20_get_temperature_celsius(bc_ds18b20_t *self, uint64_t _device_address, float *celsius);
+
+//! @brief Get device index by its device address
+//! @param[in] self Instance
+//! @param[in] device_address 64b device address
+
+int bc_ds18b20_get_index_by_device_address(bc_ds18b20_t *self, uint64_t device_address);
+
 
 //! @}
 
