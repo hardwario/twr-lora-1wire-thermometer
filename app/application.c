@@ -1,5 +1,6 @@
 #include <application.h>
 #include <bc_ds18b20.h>
+#include <at.h>
 
 /*
 
@@ -21,49 +22,71 @@ DATA- yellow (white)
 
 */
 
-// Time after the sending is less frequent to save battery
-#define SERVICE_INTERVAL_INTERVAL (10 * 60 * 1000)
-#define BATTERY_UPDATE_INTERVAL   (30 * 60 * 1000)
-
-#define UPDATE_SERVICE_INTERVAL            (5 * 1000)
-#define UPDATE_NORMAL_INTERVAL             (1 * 60 * 1000)
-
-#define BAROMETER_UPDATE_SERVICE_INTERVAL  (1 * 60 * 1000)
-#define BAROMETER_UPDATE_NORMAL_INTERVAL   (5 * 60 * 1000)
-
-#define TEMPERATURE_DS18B20_PUB_NO_CHANGE_INTEVAL (5 * 60 * 1000)
-#define TEMPERATURE_DS18B20_PUB_VALUE_CHANGE 10.0f //0.4f
-
-#define TEMPERATURE_TAG_PUB_NO_CHANGE_INTEVAL (5 * 60 * 1000)
-#define TEMPERATURE_TAG_PUB_VALUE_CHANGE 50.0f //0.6f
-
-#define HUMIDITY_TAG_PUB_NO_CHANGE_INTEVAL (5 * 60 * 1000)
-#define HUMIDITY_TAG_PUB_VALUE_CHANGE 50.0f //50.f
-
-#define LUX_METER_TAG_PUB_NO_CHANGE_INTEVAL (5 * 60 * 1000)
-#define LUX_METER_TAG_PUB_VALUE_CHANGE 100000.0f // set too big value so data will be send only every 5 minutes, light changes a lot outside.
-
-#define BAROMETER_TAG_PUB_NO_CHANGE_INTEVAL (5 * 60 * 1000)
-#define BAROMETER_TAG_PUB_VALUE_CHANGE 200000.0f //20.0f
+#define SEND_DATA_INTERVAL        (15 * 60 * 1000)
+#define MEASURE_INTERVAL               (30 * 1000)
 
 #define DS18B20_SENSOR_COUNT 10
+BC_DATA_STREAM_FLOAT_BUFFER(sm_temperature_buffer_0, (SEND_DATA_INTERVAL / MEASURE_INTERVAL))
+BC_DATA_STREAM_FLOAT_BUFFER(sm_temperature_buffer_1, (SEND_DATA_INTERVAL / MEASURE_INTERVAL))
+BC_DATA_STREAM_FLOAT_BUFFER(sm_temperature_buffer_2, (SEND_DATA_INTERVAL / MEASURE_INTERVAL))
+BC_DATA_STREAM_FLOAT_BUFFER(sm_temperature_buffer_3, (SEND_DATA_INTERVAL / MEASURE_INTERVAL))
+BC_DATA_STREAM_FLOAT_BUFFER(sm_temperature_buffer_4, (SEND_DATA_INTERVAL / MEASURE_INTERVAL))
+BC_DATA_STREAM_FLOAT_BUFFER(sm_temperature_buffer_5, (SEND_DATA_INTERVAL / MEASURE_INTERVAL))
+BC_DATA_STREAM_FLOAT_BUFFER(sm_temperature_buffer_6, (SEND_DATA_INTERVAL / MEASURE_INTERVAL))
+BC_DATA_STREAM_FLOAT_BUFFER(sm_temperature_buffer_7, (SEND_DATA_INTERVAL / MEASURE_INTERVAL))
+BC_DATA_STREAM_FLOAT_BUFFER(sm_temperature_buffer_8, (SEND_DATA_INTERVAL / MEASURE_INTERVAL))
+BC_DATA_STREAM_FLOAT_BUFFER(sm_temperature_buffer_9, (SEND_DATA_INTERVAL / MEASURE_INTERVAL))
 
-static bc_led_t led;
-static bc_button_t button;
+bc_data_stream_t sm_temperature_0;
+bc_data_stream_t sm_temperature_1;
+bc_data_stream_t sm_temperature_2;
+bc_data_stream_t sm_temperature_3;
+bc_data_stream_t sm_temperature_4;
+bc_data_stream_t sm_temperature_5;
+bc_data_stream_t sm_temperature_6;
+bc_data_stream_t sm_temperature_7;
+bc_data_stream_t sm_temperature_8;
+bc_data_stream_t sm_temperature_9;
 
+bc_data_stream_t *sm_temperature[] =
+{
+    &sm_temperature_0,
+    &sm_temperature_1,
+    &sm_temperature_2,
+    &sm_temperature_3,
+    &sm_temperature_4,
+    &sm_temperature_5,
+    &sm_temperature_6,
+    &sm_temperature_7,
+    &sm_temperature_8,
+    &sm_temperature_9
+};
+
+BC_DATA_STREAM_FLOAT_BUFFER(sm_voltage_buffer, 8)
+
+bc_data_stream_t sm_voltage;
+
+// LED instance
+bc_led_t led;
+// Button instance
+bc_button_t button;
+// Lora instance
+bc_cmwx1zzabz_t lora;
+// ds18b20 library instance
 static bc_ds18b20_t ds18b20;
+// ds18b20 sensors array
 static bc_ds18b20_sensor_t ds18b20_sensors[DS18B20_SENSOR_COUNT];
 
-struct {
-    event_param_t temperature;
-    event_param_t temperature_ds18b20[DS18B20_SENSOR_COUNT];
-    event_param_t humidity;
-    event_param_t illuminance;
-    event_param_t pressure;
+bc_scheduler_task_id_t battery_measure_task_id;
 
-} params;
+enum {
+    HEADER_BOOT         = 0x00,
+    HEADER_UPDATE       = 0x01,
+    HEADER_BUTTON_CLICK = 0x02,
+    HEADER_BUTTON_HOLD  = 0x03,
 
-void handler_button(bc_button_t *s, bc_button_event_t e, void *p);
+} header = HEADER_BOOT;
+
 
 void handler_battery(bc_module_battery_event_t e, void *p);
 
@@ -73,177 +96,240 @@ void climate_module_event_handler(bc_module_climate_event_t event, void *event_p
 
 void switch_to_normal_mode_task(void *param);
 
-void handler_button(bc_button_t *s, bc_button_event_t e, void *p)
+void button_event_handler(bc_button_t *self, bc_button_event_t event, void *event_param)
 {
-    (void) s;
-    (void) p;
+    (void) event_param;
 
-    if (e == BC_BUTTON_EVENT_PRESS)
+    if (event == BC_BUTTON_EVENT_CLICK)
     {
-        bc_led_pulse(&led, 100);
+        header = HEADER_BUTTON_CLICK;
 
-        static uint16_t event_count = 0;
+        bc_scheduler_plan_now(0);
+    }
+    else if (event == BC_BUTTON_EVENT_HOLD)
+    {
+        header = HEADER_BUTTON_HOLD;
 
-        bc_radio_pub_push_button(&event_count);
-
-        event_count++;
+        bc_scheduler_plan_now(0);
     }
 }
 
-void handler_battery(bc_module_battery_event_t e, void *p)
+void battery_event_handler(bc_module_battery_event_t event, void *event_param)
 {
-    (void) e;
-    (void) p;
-
-    float voltage;
-
-    if (bc_module_battery_get_voltage(&voltage))
+    if (event == BC_MODULE_BATTERY_EVENT_UPDATE)
     {
-        bc_radio_pub_battery(&voltage);
+        float voltage = NAN;
+
+        bc_module_battery_get_voltage(&voltage);
+
+        bc_data_stream_feed(&sm_voltage, &voltage);
     }
 }
 
-void handler_ds18b20(bc_ds18b20_t *self, uint64_t device_address, bc_ds18b20_event_t e, void *p)
+void battery_measure_task(void *param)
 {
-    (void) p;
+    if (!bc_module_battery_measure())
+    {
+        bc_scheduler_plan_current_now();
+    }
+}
+
+void handler_ds18b20(bc_ds18b20_t *self, uint64_t device_address, bc_ds18b20_event_t event, void *event_param)
+{
+    (void) event_param;
 
     float value = NAN;
 
-    if (e == bc_ds18b20_EVENT_UPDATE)
+    if (event == bc_ds18b20_EVENT_UPDATE)
     {
         bc_ds18b20_get_temperature_celsius(self, device_address, &value);
         int device_index = bc_ds18b20_get_index_by_device_address(self, device_address);
 
         //bc_log_debug("UPDATE %" PRIx64 "(%d) = %f", device_address, device_index, value);
 
-        if ((fabs(value - params.temperature_ds18b20[device_index].value) >= TEMPERATURE_DS18B20_PUB_VALUE_CHANGE) || (params.temperature_ds18b20[device_index].next_pub < bc_scheduler_get_spin_tick()))
-        {
-            static char topic[64];
-            snprintf(topic, sizeof(topic), "thermometer/%" PRIx64 "/temperature", device_address);
-            bc_radio_pub_float(topic, &value);
-            params.temperature_ds18b20[device_index].value = value;
-            params.temperature_ds18b20[device_index].next_pub = bc_scheduler_get_spin_tick() + TEMPERATURE_DS18B20_PUB_NO_CHANGE_INTEVAL;
-        }
+        bc_data_stream_feed(sm_temperature[device_index], &value);
     }
 }
 
-void climate_module_event_handler(bc_module_climate_event_t event, void *event_param)
+void lora_callback(bc_cmwx1zzabz_t *self, bc_cmwx1zzabz_event_t event, void *event_param)
 {
-    (void) event_param;
-
-    float value;
-
-    if (event == BC_MODULE_CLIMATE_EVENT_UPDATE_THERMOMETER)
+    if (event == BC_CMWX1ZZABZ_EVENT_ERROR)
     {
-        if (bc_module_climate_get_temperature_celsius(&value))
-        {
-            if ((fabs(value - params.temperature.value) >= TEMPERATURE_TAG_PUB_VALUE_CHANGE) || (params.temperature.next_pub < bc_scheduler_get_spin_tick()))
-            {
-                bc_radio_pub_temperature(BC_RADIO_PUB_CHANNEL_R1_I2C0_ADDRESS_DEFAULT, &value);
-                params.temperature.value = value;
-                params.temperature.next_pub = bc_scheduler_get_spin_tick() + TEMPERATURE_TAG_PUB_NO_CHANGE_INTEVAL;
-            }
-        }
+        bc_led_set_mode(&led, BC_LED_MODE_BLINK_FAST);
     }
-    else if (event == BC_MODULE_CLIMATE_EVENT_UPDATE_HYGROMETER)
+    else if (event == BC_CMWX1ZZABZ_EVENT_SEND_MESSAGE_START)
     {
-        if (bc_module_climate_get_humidity_percentage(&value))
-        {
-            if ((fabs(value - params.humidity.value) >= HUMIDITY_TAG_PUB_VALUE_CHANGE) || (params.humidity.next_pub < bc_scheduler_get_spin_tick()))
-            {
-                bc_radio_pub_humidity(BC_RADIO_PUB_CHANNEL_R3_I2C0_ADDRESS_DEFAULT, &value);
-                params.humidity.value = value;
-                params.humidity.next_pub = bc_scheduler_get_spin_tick() + HUMIDITY_TAG_PUB_NO_CHANGE_INTEVAL;
-            }
-        }
-    }
-    else if (event == BC_MODULE_CLIMATE_EVENT_UPDATE_LUX_METER)
-    {
-        if (bc_module_climate_get_illuminance_lux(&value))
-        {
-            if (value < 1)
-            {
-                value = 0;
-            }
-            if ((fabs(value - params.illuminance.value) >= LUX_METER_TAG_PUB_VALUE_CHANGE) || (params.illuminance.next_pub < bc_scheduler_get_spin_tick()))
-            {
-                bc_radio_pub_luminosity(BC_RADIO_PUB_CHANNEL_R1_I2C0_ADDRESS_DEFAULT, &value);
-                params.illuminance.value = value;
-                params.illuminance.next_pub = bc_scheduler_get_spin_tick() + LUX_METER_TAG_PUB_NO_CHANGE_INTEVAL;
-            }
-        }
-    }
-    else if (event == BC_MODULE_CLIMATE_EVENT_UPDATE_BAROMETER)
-    {
-        if (bc_module_climate_get_pressure_pascal(&value))
-        {
-            if ((fabs(value - params.pressure.value) >= BAROMETER_TAG_PUB_VALUE_CHANGE) || (params.pressure.next_pub < bc_scheduler_get_spin_tick()))
-            {
-                float meter;
+        bc_led_set_mode(&led, BC_LED_MODE_ON);
 
-                if (!bc_module_climate_get_altitude_meter(&meter))
-                {
-                    return;
-                }
-
-                bc_radio_pub_barometer(BC_RADIO_PUB_CHANNEL_R1_I2C0_ADDRESS_DEFAULT, &value, &meter);
-                params.pressure.value = value;
-                params.pressure.next_pub = bc_scheduler_get_spin_tick() + BAROMETER_TAG_PUB_NO_CHANGE_INTEVAL;
-            }
-        }
+        bc_scheduler_plan_relative(battery_measure_task_id, 20);
+    }
+    else if (event == BC_CMWX1ZZABZ_EVENT_SEND_MESSAGE_DONE)
+    {
+        bc_led_set_mode(&led, BC_LED_MODE_OFF);
+    }
+    else if (event == BC_CMWX1ZZABZ_EVENT_READY)
+    {
+        bc_led_set_mode(&led, BC_LED_MODE_OFF);
+    }
+    else if (event == BC_CMWX1ZZABZ_EVENT_JOIN_SUCCESS)
+    {
+        bc_atci_printf("$JOIN_OK");
+    }
+    else if (event == BC_CMWX1ZZABZ_EVENT_JOIN_ERROR)
+    {
+        bc_atci_printf("$JOIN_ERROR");
     }
 }
 
-// This task is fired once after the SERVICE_INTERVAL_INTERVAL milliseconds and changes the period
-// of measurement. After module power-up you get faster updates so you can test the module and see
-// instant changes. After SERVICE_INTERVAL_INTERVAL the update period is longer to save batteries.
-void switch_to_normal_mode_task(void *param)
+bool at_send(void)
 {
-    bc_module_climate_set_update_interval_thermometer(UPDATE_NORMAL_INTERVAL);
-    bc_module_climate_set_update_interval_hygrometer(UPDATE_NORMAL_INTERVAL);
-    bc_module_climate_set_update_interval_lux_meter(UPDATE_NORMAL_INTERVAL);
-    bc_module_climate_set_update_interval_barometer(BAROMETER_UPDATE_SERVICE_INTERVAL);
+    bc_scheduler_plan_now(0);
 
-    bc_ds18b20_set_update_interval(&ds18b20, UPDATE_NORMAL_INTERVAL);
+    return true;
+}
 
-    bc_scheduler_unregister(bc_scheduler_get_current_task_id());
+
+bool at_status(void)
+{
+    float value_avg = NAN;
+
+    if (bc_data_stream_get_average(&sm_voltage, &value_avg))
+    {
+        bc_atci_printf("$STATUS: \"Voltage\",%.1f", value_avg);
+    }
+    else
+    {
+        bc_atci_printf("$STATUS: \"Voltage\",");
+    }
+
+    for (int i = 0; i < ds18b20.sensor_found; i++)
+    {
+        value_avg = NAN;
+
+        if (bc_data_stream_get_average(sm_temperature[i], &value_avg))
+        {
+            bc_atci_printf("$STATUS: \"Temperature%d\",%.1f", i, value_avg);
+        }
+        else
+        {
+            bc_atci_printf("$STATUS: \"Temperature%d\",", i);
+        }
+    }
+
+    return true;
 }
 
 void application_init(void)
 {
+    // Initialize LED
     bc_led_init(&led, BC_GPIO_LED, false, false);
     bc_led_set_mode(&led, BC_LED_MODE_OFF);
 
-    bc_radio_init(BC_RADIO_MODE_NODE_SLEEPING);
-
+    // Initialize button
     bc_button_init(&button, BC_GPIO_BUTTON, BC_GPIO_PULL_DOWN, false);
-    bc_button_set_event_handler(&button, handler_button, NULL);
+    bc_button_set_event_handler(&button, button_event_handler, NULL);
 
+    // Initialize battery
     bc_module_battery_init();
-    bc_module_battery_set_event_handler(handler_battery, NULL);
-    bc_module_battery_set_update_interval(BATTERY_UPDATE_INTERVAL);
+    bc_module_battery_set_event_handler(battery_event_handler, NULL);
+    battery_measure_task_id = bc_scheduler_register(battery_measure_task, NULL, 2020);
 
-    // For single sensor you can call bc_ds18b20_init()
-    //bc_ds18b20_init(&ds18b20, BC_DS18B20_RESOLUTION_BITS_12);
+    // Initialize 1-Wire temperature sensors
     bc_ds18b20_init_multiple(&ds18b20, ds18b20_sensors, DS18B20_SENSOR_COUNT, BC_DS18B20_RESOLUTION_BITS_12);
-
     bc_ds18b20_set_event_handler(&ds18b20, handler_ds18b20, NULL);
-    bc_ds18b20_set_update_interval(&ds18b20, UPDATE_SERVICE_INTERVAL);
+    bc_ds18b20_set_update_interval(&ds18b20, MEASURE_INTERVAL);
 
-    // Initialize climate module
-    bc_module_climate_init();
-    bc_module_climate_set_event_handler(climate_module_event_handler, NULL);
-    bc_module_climate_set_update_interval_thermometer(UPDATE_SERVICE_INTERVAL);
-    bc_module_climate_set_update_interval_hygrometer(UPDATE_SERVICE_INTERVAL);
-    bc_module_climate_set_update_interval_lux_meter(UPDATE_SERVICE_INTERVAL);
-    bc_module_climate_set_update_interval_barometer(BAROMETER_UPDATE_NORMAL_INTERVAL);
-    bc_module_climate_measure_all_sensors();
+    // Init stream buffers for averaging
+    bc_data_stream_init(&sm_voltage, 1, &sm_voltage_buffer);
+    bc_data_stream_init(&sm_temperature_0, 1, &sm_temperature_buffer_0);
+    bc_data_stream_init(&sm_temperature_1, 1, &sm_temperature_buffer_1);
+    bc_data_stream_init(&sm_temperature_2, 1, &sm_temperature_buffer_2);
+    bc_data_stream_init(&sm_temperature_3, 1, &sm_temperature_buffer_3);
+    bc_data_stream_init(&sm_temperature_4, 1, &sm_temperature_buffer_4);
+    bc_data_stream_init(&sm_temperature_5, 1, &sm_temperature_buffer_5);
+    bc_data_stream_init(&sm_temperature_6, 1, &sm_temperature_buffer_6);
+    bc_data_stream_init(&sm_temperature_7, 1, &sm_temperature_buffer_7);
+    bc_data_stream_init(&sm_temperature_8, 1, &sm_temperature_buffer_8);
+    bc_data_stream_init(&sm_temperature_9, 1, &sm_temperature_buffer_9);
 
-    bc_scheduler_register(switch_to_normal_mode_task, NULL, SERVICE_INTERVAL_INTERVAL);
+    // Initialize lora module
+    bc_cmwx1zzabz_init(&lora, BC_UART_UART1);
+    bc_cmwx1zzabz_set_event_handler(&lora, lora_callback, NULL);
+    bc_cmwx1zzabz_set_mode(&lora, BC_CMWX1ZZABZ_CONFIG_MODE_ABP);
+    bc_cmwx1zzabz_set_class(&lora, BC_CMWX1ZZABZ_CONFIG_CLASS_A);
 
-    bc_radio_pairing_request("radio-pool-sensor", VERSION);
+    // Initialize AT command interface
+    at_init(&led, &lora);
+    static const bc_atci_command_t commands[] = {
+            AT_LORA_COMMANDS,
+            {"$SEND", at_send, NULL, NULL, NULL, "Immediately send packet"},
+            {"$STATUS", at_status, NULL, NULL, NULL, "Show status"},
+            AT_LED_COMMANDS,
+            BC_ATCI_COMMAND_CLAC,
+            BC_ATCI_COMMAND_HELP
+    };
+    bc_atci_init(commands, BC_ATCI_COMMANDS_LENGTH(commands));
 
+    // Plan task 0 (application_task) to be run after 10 seconds
+    bc_scheduler_plan_relative(0, 10 * 1000);
+    
     bc_led_pulse(&led, 2000);
 
     //bc_log_init(BC_LOG_LEVEL_DEBUG, BC_LOG_TIMESTAMP_ABS);
+}
+
+
+void application_task(void)
+{
+    if (!bc_cmwx1zzabz_is_ready(&lora))
+    {
+        bc_scheduler_plan_current_relative(100);
+
+        return;
+    }
+
+    static uint8_t buffer[30];
+    size_t len = 0;
+
+    memset(buffer, 0xff, sizeof(buffer));
+
+    buffer[len++] = header;
+
+    float voltage_avg = NAN;
+
+    bc_data_stream_get_average(&sm_voltage, &voltage_avg);
+
+    if (!isnan(voltage_avg))
+    {
+        buffer[len++] = ceil(voltage_avg * 10.f);
+    }
+
+    for (int i = 0; i < ds18b20.sensor_found; i++)
+    {
+        float temperature_avg = NAN;
+
+        bc_data_stream_get_average(sm_temperature[i], &temperature_avg);
+
+        if (!isnan(temperature_avg))
+        {
+            int16_t temperature_i16 = (int16_t) (temperature_avg * 10.f);
+
+            buffer[len++] = temperature_i16 >> 8;
+            buffer[len++] = temperature_i16;
+        }
+    }
+
+    bc_cmwx1zzabz_send_message(&lora, buffer, len);
+
+    static char tmp[sizeof(buffer) * 2 + 1];
+    for (size_t i = 0; i < len; i++)
+    {
+        sprintf(tmp + i * 2, "%02x", buffer[i]);
+    }
+
+    bc_atci_printf("$SEND: %s", tmp);
+
+    header = HEADER_UPDATE;
+
+    bc_scheduler_plan_current_relative(SEND_DATA_INTERVAL);
 }

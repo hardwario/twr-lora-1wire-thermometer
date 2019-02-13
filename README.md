@@ -1,6 +1,6 @@
 <a href="https://www.bigclown.com"><img src="https://s3.eu-central-1.amazonaws.com/bigclown/gh-readme-logo.png" alt="BigClown Logo" align="right"></a>
 
-# Radio Pool Sensor with Climate Module and 1-Wire DS18B20 temperature sensors
+# LoRa Low-power Thermometer with 1-Wire DS18B20 temperature sensors
 
 [![Travis](https://img.shields.io/travis/bigclownlabs/bc-core-module/master.svg)](https://travis-ci.org/bigclownlabs/bcf-scissor-lift-node)
 [![Release](https://img.shields.io/github/release/bigclownlabs/bc-core-module.svg)](https://github.com/bigclownlabs/bcf-scissor-lift-node/releases)
