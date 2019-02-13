@@ -22,7 +22,7 @@ DATA- yellow (white)
 */
 
 // Time after the sending is less frequent to save battery
-#define SERVICE_INTERVAL_INTERVAL (5 * 60 * 1000)
+#define SERVICE_INTERVAL_INTERVAL (10 * 60 * 1000)
 #define BATTERY_UPDATE_INTERVAL   (30 * 60 * 1000)
 
 #define UPDATE_SERVICE_INTERVAL            (5 * 1000)
@@ -31,8 +31,8 @@ DATA- yellow (white)
 #define BAROMETER_UPDATE_SERVICE_INTERVAL  (1 * 60 * 1000)
 #define BAROMETER_UPDATE_NORMAL_INTERVAL   (5 * 60 * 1000)
 
-#define TEMPERATURE_DS18B20_PUB_NO_CHANGE_INTEVAL (2 * 1000) // (5 * 60 * 1000)
-#define TEMPERATURE_DS18B20_PUB_VALUE_CHANGE 1.0f //0.4f
+#define TEMPERATURE_DS18B20_PUB_NO_CHANGE_INTEVAL (5 * 60 * 1000)
+#define TEMPERATURE_DS18B20_PUB_VALUE_CHANGE 10.0f //0.4f
 
 #define TEMPERATURE_TAG_PUB_NO_CHANGE_INTEVAL (5 * 60 * 1000)
 #define TEMPERATURE_TAG_PUB_VALUE_CHANGE 50.0f //0.6f
@@ -46,16 +46,13 @@ DATA- yellow (white)
 #define BAROMETER_TAG_PUB_NO_CHANGE_INTEVAL (5 * 60 * 1000)
 #define BAROMETER_TAG_PUB_VALUE_CHANGE 200000.0f //20.0f
 
+#define DS18B20_SENSOR_COUNT 10
+
 static bc_led_t led;
 static bc_button_t button;
 
 static bc_ds18b20_t ds18b20;
-static bc_ds18b20_sensor_t ds18b20_sensors[10];
-
-#define DS18B20_SENSOR_COUNT (sizeof(ds18b20_sensors) / sizeof(bc_ds18b20_sensor_t))
-
-// Thermometer instance
-bc_tmp112_t tmp112;
+static bc_ds18b20_sensor_t ds18b20_sensors[DS18B20_SENSOR_COUNT];
 
 struct {
     event_param_t temperature;
@@ -75,63 +72,6 @@ void handler_ds18b20(bc_ds18b20_t *s, uint64_t device_id, bc_ds18b20_event_t e, 
 void climate_module_event_handler(bc_module_climate_event_t event, void *event_param);
 
 void switch_to_normal_mode_task(void *param);
-
-void application_init(void)
-{
-    bc_led_init(&led, BC_GPIO_LED, false, false);
-    bc_led_set_mode(&led, BC_LED_MODE_OFF);
-
-    bc_radio_init(BC_RADIO_MODE_NODE_SLEEPING);
-
-    bc_button_init(&button, BC_GPIO_BUTTON, BC_GPIO_PULL_DOWN, false);
-    bc_button_set_event_handler(&button, handler_button, NULL);
-
-    bc_module_battery_init();
-    bc_module_battery_set_event_handler(handler_battery, NULL);
-    bc_module_battery_set_update_interval(BATTERY_UPDATE_INTERVAL);
-
-    //bc_ds18b20_init(&ds18b20, BC_DS18B20_RESOLUTION_BITS_12);
-
-    bc_ds18b20_init_multiple(&ds18b20, ds18b20_sensors, DS18B20_SENSOR_COUNT, BC_DS18B20_RESOLUTION_BITS_12);
-
-    bc_ds18b20_set_event_handler(&ds18b20, handler_ds18b20, NULL);
-    bc_ds18b20_set_update_interval(&ds18b20, UPDATE_SERVICE_INTERVAL);
-
-    // Initialize thermometer sensor on core module
-    bc_tmp112_init(&tmp112, BC_I2C_I2C0, 0x49);
-
-    // Initialize climate module
-    bc_module_climate_init();
-    bc_module_climate_set_event_handler(climate_module_event_handler, NULL);
-    bc_module_climate_set_update_interval_thermometer(UPDATE_SERVICE_INTERVAL);
-    bc_module_climate_set_update_interval_hygrometer(UPDATE_SERVICE_INTERVAL);
-    bc_module_climate_set_update_interval_lux_meter(UPDATE_SERVICE_INTERVAL);
-    bc_module_climate_set_update_interval_barometer(BAROMETER_UPDATE_NORMAL_INTERVAL);
-    bc_module_climate_measure_all_sensors();
-
-    bc_scheduler_register(switch_to_normal_mode_task, NULL, SERVICE_INTERVAL_INTERVAL);
-
-    bc_radio_pairing_request("radio-pool-sensor", VERSION);
-
-    bc_led_pulse(&led, 2000);
-
-    bc_log_init(BC_LOG_LEVEL_DEBUG, BC_LOG_TIMESTAMP_ABS);
-}
-
-// This task is fired once after the SERVICE_INTERVAL_INTERVAL milliseconds and changes the period
-// of measurement. After module power-up you get faster updates so you can test the module and see
-// instant changes. After SERVICE_INTERVAL_INTERVAL the update period is longer to save batteries.
-void switch_to_normal_mode_task(void *param)
-{
-    bc_module_climate_set_update_interval_thermometer(UPDATE_NORMAL_INTERVAL);
-    bc_module_climate_set_update_interval_hygrometer(UPDATE_NORMAL_INTERVAL);
-    bc_module_climate_set_update_interval_lux_meter(UPDATE_NORMAL_INTERVAL);
-    bc_module_climate_set_update_interval_barometer(BAROMETER_UPDATE_SERVICE_INTERVAL);
-
-    bc_ds18b20_set_update_interval(&ds18b20, UPDATE_NORMAL_INTERVAL);
-
-    bc_scheduler_unregister(bc_scheduler_get_current_task_id());
-}
 
 void handler_button(bc_button_t *s, bc_button_event_t e, void *p)
 {
@@ -174,7 +114,7 @@ void handler_ds18b20(bc_ds18b20_t *self, uint64_t device_address, bc_ds18b20_eve
         bc_ds18b20_get_temperature_celsius(self, device_address, &value);
         int device_index = bc_ds18b20_get_index_by_device_address(self, device_address);
 
-        bc_log_debug("UPDATE %" PRIx64 "(%d) = %f", device_address, device_index, value);
+        //bc_log_debug("UPDATE %" PRIx64 "(%d) = %f", device_address, device_index, value);
 
         if ((fabs(value - params.temperature_ds18b20[device_index].value) >= TEMPERATURE_DS18B20_PUB_VALUE_CHANGE) || (params.temperature_ds18b20[device_index].next_pub < bc_scheduler_get_spin_tick()))
         {
@@ -254,3 +194,56 @@ void climate_module_event_handler(bc_module_climate_event_t event, void *event_p
     }
 }
 
+// This task is fired once after the SERVICE_INTERVAL_INTERVAL milliseconds and changes the period
+// of measurement. After module power-up you get faster updates so you can test the module and see
+// instant changes. After SERVICE_INTERVAL_INTERVAL the update period is longer to save batteries.
+void switch_to_normal_mode_task(void *param)
+{
+    bc_module_climate_set_update_interval_thermometer(UPDATE_NORMAL_INTERVAL);
+    bc_module_climate_set_update_interval_hygrometer(UPDATE_NORMAL_INTERVAL);
+    bc_module_climate_set_update_interval_lux_meter(UPDATE_NORMAL_INTERVAL);
+    bc_module_climate_set_update_interval_barometer(BAROMETER_UPDATE_SERVICE_INTERVAL);
+
+    bc_ds18b20_set_update_interval(&ds18b20, UPDATE_NORMAL_INTERVAL);
+
+    bc_scheduler_unregister(bc_scheduler_get_current_task_id());
+}
+
+void application_init(void)
+{
+    bc_led_init(&led, BC_GPIO_LED, false, false);
+    bc_led_set_mode(&led, BC_LED_MODE_OFF);
+
+    bc_radio_init(BC_RADIO_MODE_NODE_SLEEPING);
+
+    bc_button_init(&button, BC_GPIO_BUTTON, BC_GPIO_PULL_DOWN, false);
+    bc_button_set_event_handler(&button, handler_button, NULL);
+
+    bc_module_battery_init();
+    bc_module_battery_set_event_handler(handler_battery, NULL);
+    bc_module_battery_set_update_interval(BATTERY_UPDATE_INTERVAL);
+
+    // For single sensor you can call bc_ds18b20_init()
+    //bc_ds18b20_init(&ds18b20, BC_DS18B20_RESOLUTION_BITS_12);
+    bc_ds18b20_init_multiple(&ds18b20, ds18b20_sensors, DS18B20_SENSOR_COUNT, BC_DS18B20_RESOLUTION_BITS_12);
+
+    bc_ds18b20_set_event_handler(&ds18b20, handler_ds18b20, NULL);
+    bc_ds18b20_set_update_interval(&ds18b20, UPDATE_SERVICE_INTERVAL);
+
+    // Initialize climate module
+    bc_module_climate_init();
+    bc_module_climate_set_event_handler(climate_module_event_handler, NULL);
+    bc_module_climate_set_update_interval_thermometer(UPDATE_SERVICE_INTERVAL);
+    bc_module_climate_set_update_interval_hygrometer(UPDATE_SERVICE_INTERVAL);
+    bc_module_climate_set_update_interval_lux_meter(UPDATE_SERVICE_INTERVAL);
+    bc_module_climate_set_update_interval_barometer(BAROMETER_UPDATE_NORMAL_INTERVAL);
+    bc_module_climate_measure_all_sensors();
+
+    bc_scheduler_register(switch_to_normal_mode_task, NULL, SERVICE_INTERVAL_INTERVAL);
+
+    bc_radio_pairing_request("radio-pool-sensor", VERSION);
+
+    bc_led_pulse(&led, 2000);
+
+    //bc_log_init(BC_LOG_LEVEL_DEBUG, BC_LOG_TIMESTAMP_ABS);
+}
