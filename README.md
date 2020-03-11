@@ -1,15 +1,15 @@
-<a href="https://www.bigclown.com/"><img src="https://bigclown.sirv.com/logo.png" width="200" alt="BigClown Logo" align="right"></a>
+<a href="https://www.hardwario.com/"><img src="https://www.hardwario.com/ci/assets/hw-logo.svg" width="200" alt="HARDWARIO Logo" align="right"></a>
 
 # LoRa Low-power Thermometer with 1-Wire DS18B20 temperature sensors
 
-[![Travis](https://img.shields.io/travis/bigclownlabs/bc-core-module/master.svg)](https://travis-ci.org/bigclownlabs/bcf-scissor-lift-node)
-[![Release](https://img.shields.io/github/release/bigclownlabs/bc-core-module.svg)](https://github.com/bigclownlabs/bcf-scissor-lift-node/releases)
-[![License](https://img.shields.io/github/license/bigclownlabs/bc-core-module.svg)](https://github.com/bigclownlabs/bcf-scissor-lift-node/blob/master/LICENSE)
-[![Twitter](https://img.shields.io/twitter/follow/BigClownLabs.svg?style=social&label=Follow)](https://twitter.com/BigClownLabs)
+[![Travis](https://img.shields.io/travis/bigclownprojects/bcf-lora-1wire-thermometer/master.svg)](https://travis-ci.org/bigclownlabs/bigclownprojects/bcf-lora-1wire-thermometer)
+[![Release](https://img.shields.io/github/release/bigclownprojects/bcf-lora-1wire-thermometer.svg)](https://github.com/bigclownlabs/bigclownprojects/bcf-lora-1wire-thermometer/releases)
+[![License](https://img.shields.io/github/license/bigclownprojects/bcf-lora-1wire-thermometer.svg)](https://github.com/bigclownlabs/bigclownprojects/bcf-lora-1wire-thermometer/blob/master/LICENSE)
+[![Twitter](https://img.shields.io/twitter/follow/hardwario_en.svg?style=social&label=Follow)](https://twitter.com/hardwario_en)
 
 If you want to get more information about Core Module, firmware and how to work with it, please follow this link:
 
-**https://doc.bigclown.com/core-module.html**
+**https://developers.hardwario.com/firmware/basic-overview/**
 
 ## License
 
@@ -17,4 +17,4 @@ This project is licensed under the [MIT License](https://opensource.org/licenses
 
 ---
 
-Made with &#x2764;&nbsp; by [BigClown Labs s.r.o.](https://www.bigclown.com) in Czech Republic.
+Made with &#x2764;&nbsp; by [**HARDWARIO s.r.o.**](https://www.hardwario.com) in Czech Republic.
