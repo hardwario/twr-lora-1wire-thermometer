@@ -1,5 +1,4 @@
 #include <application.h>
-#include <bc_ds18b20.h>
 #include <at.h>
 
 /*
@@ -140,7 +139,7 @@ void handler_ds18b20(bc_ds18b20_t *self, uint64_t device_address, bc_ds18b20_eve
 
     float value = NAN;
 
-    if (event == bc_ds18b20_EVENT_UPDATE)
+    if (event == BC_DS18B20_EVENT_UPDATE)
     {
         bc_ds18b20_get_temperature_celsius(self, device_address, &value);
         int device_index = bc_ds18b20_get_index_by_device_address(self, device_address);
@@ -202,7 +201,9 @@ bool at_status(void)
         bc_atci_printf("$STATUS: \"Voltage\",");
     }
 
-    for (int i = 0; i < ds18b20.sensor_found; i++)
+    int sensor_found = bc_ds18b20_get_sensor_found(&ds18b20);
+
+    for (int i = 0; i < sensor_found; i++)
     {
         value_avg = NAN;
 
@@ -304,7 +305,9 @@ void application_task(void)
         buffer[len++] = ceil(voltage_avg * 10.f);
     }
 
-    for (int i = 0; i < ds18b20.sensor_found; i++)
+    int sensor_found = bc_ds18b20_get_sensor_found(&ds18b20);
+
+    for (int i = 0; i < sensor_found; i++)
     {
         float temperature_avg = NAN;
 
