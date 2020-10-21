@@ -222,6 +222,8 @@ bool at_status(void)
 
 void application_init(void)
 {
+    // bc_log_init(BC_LOG_LEVEL_DUMP, BC_LOG_TIMESTAMP_ABS);
+
     // Initialize LED
     bc_led_init(&led, BC_GPIO_LED, false, false);
     bc_led_set_mode(&led, BC_LED_MODE_OFF);
@@ -289,7 +291,7 @@ void application_task(void)
         return;
     }
 
-    static uint8_t buffer[30];
+    static uint8_t buffer[1 + 1 + 2 * (DS18B20_SENSOR_COUNT)];
     size_t len = 0;
 
     memset(buffer, 0xff, sizeof(buffer));
@@ -300,10 +302,7 @@ void application_task(void)
 
     bc_data_stream_get_average(&sm_voltage, &voltage_avg);
 
-    if (!isnan(voltage_avg))
-    {
-        buffer[len++] = ceil(voltage_avg * 10.f);
-    }
+    buffer[len++] = !isnan(voltage_avg) ? ceil(voltage_avg * 10.f) : 0xff;   
 
     int sensor_found = bc_ds18b20_get_sensor_found(&ds18b20);
 
@@ -325,6 +324,7 @@ void application_task(void)
     bc_cmwx1zzabz_send_message(&lora, buffer, len);
 
     static char tmp[sizeof(buffer) * 2 + 1];
+
     for (size_t i = 0; i < len; i++)
     {
         sprintf(tmp + i * 2, "%02x", buffer[i]);
