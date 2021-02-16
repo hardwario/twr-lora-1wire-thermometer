@@ -1,7 +1,7 @@
 var cursor = 0;
 var buffer;
 
-function Decoder(bytes, port) {
+function Decode(port, bytes) {
 
     buffer = bytes;
 
