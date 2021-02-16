@@ -1,6 +1,3 @@
-var hex = "021a0107"
-var buf = Buffer.from(hex, 'hex')
-
 var cursor = 0;
 var buffer;
 
@@ -46,5 +43,3 @@ function s16() {
     cursor = cursor + 2;
     return value;
 }
-
-console.log(JSON.stringify(Decoder(buf, 1234)));
