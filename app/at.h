@@ -1,9 +1,7 @@
 #ifndef _AT_H
 #define _AT_H
 
-#include <bc_atci.h>
-#include <bc_cmwx1zzabz.h>
-#include <bc_led.h>
+#include <bcl.h>
 
 #define AT_LORA_COMMANDS {"$DEVEUI", NULL, at_deveui_set, at_deveui_read, NULL, ""},\
                          {"$DEVADDR", NULL, at_devaddr_set, at_devaddr_read, NULL, ""},\
