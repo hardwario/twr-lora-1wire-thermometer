@@ -9,8 +9,7 @@ static struct
 
 } _at;
 
-static bool _at_param_eui_test(twr_atci_param_t *param);
-static bool _at_param_key_test(twr_atci_param_t *param);
+static bool _at_param_format_and_test(twr_atci_param_t *param, uint8_t length);
 
 void at_init(twr_led_t *led, twr_cmwx1zzabz_t *lora)
 {
@@ -29,7 +28,7 @@ bool at_deveui_read(void)
 
 bool at_deveui_set(twr_atci_param_t *param)
 {
-    if (!_at_param_eui_test(param))
+    if (!_at_param_format_and_test(param, 16))
     {
         return false;
     }
@@ -67,7 +66,7 @@ bool at_nwkskey_read(void)
 
 bool at_nwkskey_set(twr_atci_param_t *param)
 {
-    if (!_at_param_key_test(param))
+    if (!_at_param_format_and_test(param, 32))
     {
         return false;
     }
@@ -88,7 +87,7 @@ bool at_appkey_read(void)
 
 bool at_appkey_set(twr_atci_param_t *param)
 {
-    if (!_at_param_key_test(param))
+    if (!_at_param_format_and_test(param, 32))
     {
         return false;
     }
@@ -109,7 +108,7 @@ bool at_appeui_read(void)
 
 bool at_appeui_set(twr_atci_param_t *param)
 {
-    if (!_at_param_eui_test(param))
+    if (!_at_param_format_and_test(param, 16))
     {
         return false;
     }
@@ -130,7 +129,7 @@ bool at_appskey_read(void)
 
 bool at_appskey_set(twr_atci_param_t *param)
 {
-    if (!_at_param_key_test(param))
+    if (!_at_param_format_and_test(param, 32))
     {
         return false;
     }
@@ -254,37 +253,40 @@ bool at_led_help(void)
     return true;
 }
 
-static bool _at_param_eui_test(twr_atci_param_t *param)
+static bool _at_param_format_and_test(twr_atci_param_t *param, uint8_t length)
 {
-    if (param->length != 16)
-    {
-        return false;
-    }
 
-    for (size_t i = 0; i < param->length; i++)
-    {
-        if (isdigit(param->txt[i]) || isupper(param->txt[i]))
-        {
-            continue;
+    // Capitalize letters
+    for (uint32_t i = 0; param->txt[i] != '\0'; i++) {
+        if (param->txt[i] >= 'a' && param->txt[i] <= 'z') {
+            param->txt[i] = param->txt[i] - 32;
         }
-
-        return false;
     }
 
-    return true;
-}
+    // Skip spaces
+    for (uint32_t i = 0; i < strlen(param->txt); i++)
+    {
+        while (param->txt[i] == ' ')
+        {
+            for (uint32_t q = 0; q < strlen(param->txt); q++)
+            {
+                param->txt[i + q] = param->txt[i + q + 1];
+            }
+        }
+    }
+        
+    // Correct new string length
+    param->length = strlen(param->txt);
 
-
-static bool _at_param_key_test(twr_atci_param_t *param)
-{
-    if (param->length != 32)
+    if (param->length != length)
     {
         return false;
     }
 
-    for (size_t i = 0; i < param->length; i++)
+    // Check the string is HEX
+    for (size_t i = 0; i < strlen(param->txt); i++)
     {
-        if (isdigit(param->txt[i]) || isupper(param->txt[i]))
+        if ((param->txt[i] >= '0' && param->txt[i] <= '9') || (param->txt[i] >= 'A' && param->txt[i] <= 'F'))
         {
             continue;
         }
