@@ -237,6 +237,9 @@ void application_init(void)
     twr_module_battery_set_event_handler(battery_event_handler, NULL);
     battery_measure_task_id = twr_scheduler_register(battery_measure_task, NULL, 2020);
 
+    // Initialize Sensor Module
+    twr_module_sensor_init();
+
     // Initialize 1-Wire temperature sensors
     twr_ds18b20_init_multiple(&ds18b20, ds18b20_sensors, DS18B20_SENSOR_COUNT, TWR_DS18B20_RESOLUTION_BITS_12);
     twr_ds18b20_set_event_handler(&ds18b20, handler_ds18b20, NULL);
@@ -259,6 +262,7 @@ void application_init(void)
     twr_cmwx1zzabz_init(&lora, TWR_UART_UART1);
     twr_cmwx1zzabz_set_event_handler(&lora, lora_callback, NULL);
     twr_cmwx1zzabz_set_class(&lora, TWR_CMWX1ZZABZ_CONFIG_CLASS_A);
+    //twr_cmwx1zzabz_set_debug(&lora, debug); // Enable debug output of LoRa Module commands to Core Module console
 
     // Initialize AT command interface
     at_init(&led, &lora);
