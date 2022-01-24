@@ -1,5 +1,4 @@
-#include <application.h>
-#include <at.h>
+#include <twr.h>
 
 /*
 
@@ -20,6 +19,14 @@ GND - black
 DATA- yellow (white)
 
 */
+
+typedef struct
+{
+    uint8_t channel;
+    float value;
+    twr_tick_t next_pub;
+
+} event_param_t;
 
 #define SEND_DATA_INTERVAL        (15 * 60 * 1000)
 #define MEASURE_INTERVAL               (30 * 1000)
@@ -265,12 +272,11 @@ void application_init(void)
     //twr_cmwx1zzabz_set_debug(&lora, debug); // Enable debug output of LoRa Module commands to Core Module console
 
     // Initialize AT command interface
-    at_init(&led, &lora);
+    twr_at_lora_init(&lora);
     static const twr_atci_command_t commands[] = {
-            AT_LORA_COMMANDS,
+            TWR_AT_LORA_COMMANDS,
             {"$SEND", at_send, NULL, NULL, NULL, "Immediately send packet"},
             {"$STATUS", at_status, NULL, NULL, NULL, "Show status"},
-            AT_LED_COMMANDS,
             TWR_ATCI_COMMAND_CLAC,
             TWR_ATCI_COMMAND_HELP
     };
@@ -281,7 +287,8 @@ void application_init(void)
     
     twr_led_pulse(&led, 2000);
 
-    //twr_log_init(TWR_LOG_LEVEL_DEBUG, TWR_LOG_TIMESTAMP_ABS);
+    twr_atci_println("@BUILD_DATE: " BUILD_DATE);
+    twr_atci_println("@GIT_VERSION: " GIT_VERSION);
 }
 
 
