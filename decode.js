@@ -1,3 +1,11 @@
+function decodeUplink(input) {
+    return {
+      data: Decode(input.fPort, input.bytes, 0),
+      warnings: [],
+      errors: []
+    };
+  }
+
 var cursor = 0;
 var buffer;
 
