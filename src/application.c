@@ -229,7 +229,7 @@ bool at_status(void)
 
 void application_init(void)
 {
-    // twr_log_init(TWR_LOG_LEVEL_DUMP, TWR_LOG_TIMESTAMP_ABS);
+    twr_log_init(TWR_LOG_LEVEL_DUMP, TWR_LOG_TIMESTAMP_ABS);
 
     // Initialize LED
     twr_led_init(&led, TWR_GPIO_LED, false, false);
